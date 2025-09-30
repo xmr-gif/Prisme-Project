@@ -1,0 +1,247 @@
+{# templates/visualize/index.html.twig #}
+
+{% extends 'base.html.twig' %}
+
+{% block title %}Logs - {{ logFile.originalName }}{% endblock %}
+
+{% block stylesheets %}
+    {{ parent() }}
+    <link rel="stylesheet" href="{{ asset('css/visualize.css') }}">
+{% endblock %}
+
+{% block body %}
+<div class="logs-container">
+    <!-- Header avec navigation -->
+    <header class="logs-header">
+        <div class="header-content">
+            <div class="logo">
+                <div class="prism-icon">▲</div>
+                <span>PRISME</span>
+            </div>
+            <nav class="main-nav">
+                <a href="{{ path('app_home') }}" class="nav-link">Home</a>
+                <a href="#" class="nav-link">Docs</a>
+                <a href="#" class="nav-link">Help</a>
+                <a href="{{ path('app_upload') }}" class="nav-link nav-active">Upload</a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="logs-main">
+        <div class="logs-content">
+            <!-- Page Title -->
+            <div class="page-header">
+                <h1 class="page-title">Logs</h1>
+                <p class="page-subtitle">View and manage your application logs.</p>
+
+                <!-- File Info -->
+                <div class="file-info">
+                    <span class="file-name">📄 {{ logFile.originalName }}</span>
+                    <span class="file-stats">
+                        {{ statistics.total }} entries • {{ logFile.fileSizeFormatted }} •
+                        Uploaded {{ logFile.uploadedAt|date('Y-m-d H:i') }}
+                    </span>
+                </div>
+            </div>
+
+            <!-- Statistics Cards -->
+            <div class="stats-cards">
+                <div class="stat-card critical">
+                    <div class="stat-number">{{ statistics.Critical }}</div>
+                    <div class="stat-label">Critical</div>
+                </div>
+                <div class="stat-card medium">
+                    <div class="stat-number">{{ statistics.Medium }}</div>
+                    <div class="stat-label">Medium</div>
+                </div>
+                <div class="stat-card low">
+                    <div class="stat-number">{{ statistics.Low }}</div>
+                    <div class="stat-label">Low</div>
+                </div>
+                <div class="stat-card bug">
+                    <div class="stat-number">{{ statistics.Bug }}</div>
+                    <div class="stat-label">Bug</div>
+                </div>
+            </div>
+
+            <!-- Filters Panel -->
+            <div class="filters-panel">
+                <form id="filters-form" method="GET">
+                    <div class="filters-row">
+                        <!-- Search -->
+                        <div class="filter-group">
+                            <div class="search-input">
+                                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                    <circle cx="11" cy="11" r="8"></circle>
+                                    <path d="m21 21-4.35-4.35"></path>
+                                </svg>
+                                <input
+                                    type="text"
+                                    id="search-input"
+                                    name="search"
+                                    placeholder="Search for errors..."
+                                    value="{{ filters.search }}"
+                                    autocomplete="off">
+                            </div>
+                        </div>
+
+                        <!-- Sort by Date -->
+                        <div class="filter-group">
+                            <select name="sort_by" id="sort-by" class="filter-select">
+                                <option value="timestamp" {{ filters.sort_by == 'timestamp' ? 'selected' : '' }}>Sort by Date</option>
+                                <option value="severity" {{ filters.sort_by == 'severity' ? 'selected' : '' }}>Sort by Severity</option>
+                                <option value="channel" {{ filters.sort_by == 'channel' ? 'selected' : '' }}>Sort by Channel</option>
+                            </select>
+                        </div>
+
+                        <!-- Sort Order -->
+                        <div class="filter-group">
+                            <select name="sort_order" id="sort-order" class="filter-select">
+                                <option value="DESC" {{ filters.sort_order == 'DESC' ? 'selected' : '' }}>Newest First</option>
+                                <option value="ASC" {{ filters.sort_order == 'ASC' ? 'selected' : '' }}>Oldest First</option>
+                            </select>
+                        </div>
+
+                        <!-- Sort by Severity -->
+                        <div class="filter-group">
+                            <select name="severity" id="severity-filter" class="filter-select">
+                                {% for value, label in severityOptions %}
+                                    <option value="{{ value }}" {{ filters.severity == value ? 'selected' : '' }}>
+                                        {{ label }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Export -->
+                        <div class="filter-group">
+                            <div class="export-dropdown">
+                                <select id="export-format" class="filter-select">
+                                    <option value="">Export Format</option>
+                                    <option value="pdf">PDF</option>
+                                    <option value="csv">CSV</option>
+                                    <option value="json">JSON</option>
+                                </select>
+                                <button type="button" id="download-btn" class="download-btn">Download</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Date Range Filter -->
+                    <div class="date-filters">
+                        <div class="date-group">
+                            <label for="date-from">From:</label>
+                            <input type="date" id="date-from" name="date_from" value="{{ filters.date_from }}">
+                        </div>
+                        <div class="date-group">
+                            <label for="date-to">To:</label>
+                            <input type="date" id="date-to" name="date_to" value="{{ filters.date_to }}">
+                        </div>
+                        <button type="button" id="clear-filters" class="clear-filters-btn">Clear Filters</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Results Count -->
+            <div class="results-info">
+                <span id="results-count">{{ logEntries|length }} entries</span>
+                {% if filters.search or filters.severity != 'all' or filters.date_from or filters.date_to %}
+                    <span class="filtered-indicator">(filtered)</span>
+                {% endif %}
+            </div>
+
+            <!-- Logs Table -->
+            <div class="logs-table-container">
+                {% if logEntries|length > 0 %}
+                    <table class="logs-table">
+                        <thead>
+                            <tr>
+                                <th class="col-date">
+                                    <button class="sort-header" data-sort="timestamp">
+                                        DATE
+                                        <span class="sort-indicator {{ filters.sort_by == 'timestamp' ? (filters.sort_order == 'DESC' ? 'desc' : 'asc') : '' }}"></span>
+                                    </button>
+                                </th>
+                                <th class="col-severity">
+                                    <button class="sort-header" data-sort="severity">
+                                        SEVERITY
+                                        <span class="sort-indicator {{ filters.sort_by == 'severity' ? (filters.sort_order == 'DESC' ? 'desc' : 'asc') : '' }}"></span>
+                                    </button>
+                                </th>
+                                <th class="col-message">MESSAGE</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logs-tbody">
+                            {% for entry in logEntries %}
+                                <tr class="log-row" data-severity="{{ entry.severity|lower }}">
+                                    <td class="col-date">
+                                        <span class="timestamp">{{ entry.formattedTimestamp }}</span>
+                                        {% if entry.channel %}
+                                            <span class="channel">{{ entry.channel }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="col-severity">
+                                        <span class="severity-badge {{ entry.severityBadgeClass }}">
+                                            {{ entry.severity }}
+                                        </span>
+                                    </td>
+                                    <td class="col-message">
+                                        <div class="message-content">
+                                            {{ entry.message }}
+                                        </div>
+                                        {% if entry.context %}
+                                            <button class="context-toggle" data-entry-id="{{ entry.id }}">
+                                                Show Context
+                                            </button>
+                                            <div class="context-details" id="context-{{ entry.id }}" style="display: none;">
+                                                <pre>{{ entry.context|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre>
+                                            </div>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <div class="no-results">
+                        <div class="no-results-icon">🔍</div>
+                        <h3>No logs found</h3>
+                        <p>Try adjusting your filters or search terms.</p>
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- Loading Indicator -->
+            <div class="loading-indicator" id="loading-indicator" style="display: none;">
+                <div class="spinner"></div>
+                <span>Filtering logs...</span>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Hidden form pour les exports -->
+<form id="export-form" method="GET" style="display: none;">
+    <input type="hidden" name="search" value="{{ filters.search }}">
+    <input type="hidden" name="severity" value="{{ filters.severity }}">
+    <input type="hidden" name="date_from" value="{{ filters.date_from }}">
+    <input type="hidden" name="date_to" value="{{ filters.date_to }}">
+    <input type="hidden" name="sort_by" value="{{ filters.sort_by }}">
+    <input type="hidden" name="sort_order" value="{{ filters.sort_order }}">
+</form>
+{% endblock %}
+
+{% block javascripts %}
+    {{ parent() }}
+    <script>
+        // Configuration pour JavaScript
+        const visualizeConfig = {
+            logFileId: {{ logFile.id }},
+            currentFilters: {{ filters|json_encode|raw }},
+            exportUrl: '{{ path('app_export', {id: logFile.id, format: 'FORMAT'}) }}',
+            visualizeUrl: '{{ path('app_visualize', {id: logFile.id}) }}'
+        };
+    </script>
+    <script src="{{ asset('js/visualize.js') }}"></script>
+{% endblock %}

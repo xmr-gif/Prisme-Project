@@ -1,0 +1,30 @@
+{# templates/upload/index.html.twig #}
+
+<!-- Le formulaire doit pointer vers la bonne route -->
+{{ form_start(form, {
+    'attr': {
+        'id': 'upload-form',
+        'action': path('app_upload'),  {# ← IMPORTANT #}
+        'method': 'POST',
+        'enctype': 'multipart/form-data'
+    }
+}) }}
+
+    <!-- Input file caché -->
+    <input type="file"
+           id="file-input"
+           name="{{ form.file.vars.full_name }}"
+           accept=".log,.txt,text/plain"
+           style="display: none;">
+
+    <!-- Bouton Visualize - doit être de type submit -->
+    {{ form_widget(form.submit, {
+        'attr': {
+            'type': 'submit',  {# ← IMPORTANT #}
+            'class': 'btn-visualize',
+            'id': 'visualize-btn',
+            'disabled': 'disabled'
+        }
+    }) }}
+
+{{ form_end(form, {'render_rest': false}) }}
