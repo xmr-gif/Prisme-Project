@@ -1,0 +1,45 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Log Entry Details{% endblock %}
+
+{% block body %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1>Log Entry Details</h1>
+                <a href="{{ path('app_logs') }}" class="btn btn-secondary">
+                    <i class="bi bi-arrow-left"></i> Back to List
+                </a>
+            </div>
+
+            <div class="card">
+                <div class="card-body">
+                    <dl class="row">
+                        <dt class="col-sm-3">Level</dt>
+                        <dd class="col-sm-9">
+                            <span class="{{ logEntry.levelBadgeClass }}">
+                                {{ logEntry.level }}
+                            </span>
+                        </dd>
+
+                        <dt class="col-sm-3">Timestamp</dt>
+                        <dd class="col-sm-9">{{ logEntry.timestamp|date('Y-m-d H:i:s') }}</dd>
+
+                        <dt class="col-sm-3">Source</dt>
+                        <dd class="col-sm-9">{{ logEntry.source ?? 'N/A' }}</dd>
+
+                        <dt class="col-sm-3">Created At</dt>
+                        <dd class="col-sm-9">{{ logEntry.createdAt|date('Y-m-d H:i:s') }}</dd>
+
+                        <dt class="col-sm-3">Message</dt>
+                        <dd class="col-sm-9">
+                            <pre class="bg-light p-3 rounded">{{ logEntry.message }}</pre>
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

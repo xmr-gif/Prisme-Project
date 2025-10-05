@@ -12,19 +12,19 @@ class HomeController extends AbstractController
     #[Route('/', name: 'app_home')]
     public function index(): Response
     {
-        // Vérifier si l'utilisateur est déjà connecté
-        $user = $this->getUser();
+        // If user is logged in, redirect to logs page
+        if ($this->getUser()) {
+            return $this->redirectToRoute('app_logs');
+        }
 
-        return $this->render('home/index.html.twig', [
-            'controller_name' => 'PRISME - Accueil',
-            'show_auth_popup' => !$user, // Montrer popup seulement si pas connecté
-            'user' => $user
-        ]);
+        // If not logged in, redirect to login page
+        return $this->redirectToRoute('app_login');
     }
 
     #[Route('/connect/google', name: 'connect_google_start')]
     public function connectAction(ClientRegistry $clientRegistry): Response
     {
+        // Redirect to Google for authentication
         return $clientRegistry
             ->getClient('google')
             ->redirect([
@@ -35,7 +35,8 @@ class HomeController extends AbstractController
     #[Route('/connect/google/check', name: 'connect_google_check')]
     public function connectCheckAction(): Response
     {
-        // Cette route sera gérée par l'authenticator
-        return $this->redirectToRoute('app_dashboard');
+        // This route is handled by the GoogleAuthenticator
+        // After successful authentication, redirect to logs
+        return $this->redirectToRoute('app_logs');
     }
 }

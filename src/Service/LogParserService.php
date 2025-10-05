@@ -1,114 +1,138 @@
 <?php
-// src/Service/LogParserService.php
 
 namespace App\Service;
 
 use App\Entity\LogEntry;
-use App\Entity\LogFile;
-use App\Service\LogParser\LogParserInterface;
 use Doctrine\ORM\EntityManagerInterface;
 
 class LogParserService
 {
-    /**
-     * @var LogParserInterface[]
-     */
-    private array $parsers = [];
-
-    /**
-     * @param iterable<LogParserInterface> $parsers
-     */
     public function __construct(
-        private EntityManagerInterface $entityManager,
-        iterable $parsers = [],
-        private string $uploadDirectory = 'public/uploads'
+        private EntityManagerInterface $entityManager
     ) {
-        foreach ($parsers as $parser) {
-            $this->addParser($parser);
-        }
-    }
-
-    public function addParser(LogParserInterface $parser): void
-    {
-        $this->parsers[] = $parser;
     }
 
     /**
-     * @throws \Exception
+     * Parse a log file and save entries to database
+     *
+     * @param string $filePath Full path to the log file
+     * @param string $source Source identifier for the logs
+     * @return int Number of entries parsed
      */
-    public function parseLogFile(LogFile $logFile): array
+    public function parseLogFile(string $filePath, string $source = 'unknown'): int
     {
-        $filePath = $this->uploadDirectory . '/' . $logFile->getFilename();
-
         if (!file_exists($filePath)) {
-            throw new \Exception('Log file not found: ' . $filePath);
+            throw new \Exception("File not found: {$filePath}");
         }
 
-        $content = file_get_contents($filePath);
-        if ($content === false) {
-            throw new \Exception('Cannot read log file');
+        $handle = fopen($filePath, 'r');
+        if (!$handle) {
+            throw new \Exception("Could not open file: {$filePath}");
         }
 
-        // Trouver le parser approprié
-        $parser = $this->findParser($content);
+        $count = 0;
+        $batchSize = 100; // Flush every 100 entries for performance
 
-        // Parser le contenu
-        $entries = $parser->parse($content);
+        while (($line = fgets($handle)) !== false) {
+            $line = trim($line);
 
-        // Sauvegarder en base
-        $this->saveLogEntries($logFile, $entries);
+            if (empty($line)) {
+                continue;
+            }
 
-        // Mettre à jour le status du fichier
-        $logFile->setStatus('processed');
-        $this->entityManager->flush();
+            $logEntry = $this->parseLine($line, $source);
 
-        return [
-            'parser_used' => $parser->getName(),
-            'entries_count' => count($entries),
-            'entries' => $entries
-        ];
-    }
+            if ($logEntry) {
+                $this->entityManager->persist($logEntry);
+                $count++;
 
-    private function findParser(string $content): LogParserInterface
-    {
-        foreach ($this->parsers as $parser) {
-            if ($parser->supports($content)) {
-                return $parser;
+                // Flush in batches for better performance
+                if ($count % $batchSize === 0) {
+                    $this->entityManager->flush();
+                }
             }
         }
 
-        // Fallback vers le dernier parser (généralement GenericLogParser)
-        if (!empty($this->parsers)) {
-            return end($this->parsers);
+        fclose($handle);
+
+        // Final flush for remaining entries
+        if ($count % $batchSize !== 0) {
+            $this->entityManager->flush();
         }
 
-        throw new \Exception('No log parser available');
+        return $count;
     }
 
-    private function saveLogEntries(LogFile $logFile, array $entries): void
+    /**
+     * Parse a single log line
+     *
+     * @param string $line The log line to parse
+     * @param string $source Source identifier
+     * @return LogEntry|null
+     */
+    private function parseLine(string $line, string $source): ?LogEntry
     {
-        foreach ($entries as $entryData) {
-            $logEntry = new LogEntry();
-            $logEntry->setLogFile($logFile);
-            $logEntry->setTimestamp($entryData['timestamp']);
-            $logEntry->setLevel($entryData['level']);
-            $logEntry->setSeverity($entryData['severity']);
-            $logEntry->setMessage($entryData['message']);
-            $logEntry->setChannel($entryData['channel'] ?? 'application');
-            $logEntry->setRawContent($entryData['raw']);
+        // Try to parse common log formats
+        $logEntry = new LogEntry();
+        $logEntry->setSource($source);
 
-            if (isset($entryData['context'])) {
-                $logEntry->setContext($entryData['context']);
+        // Pattern 1: Symfony/Monolog format
+        // [2024-01-15 10:30:45] app.ERROR: Something went wrong {"context":"value"} []
+        if (preg_match('/^\[([^\]]+)\]\s+\w+\.(\w+):\s+(.+)$/', $line, $matches)) {
+            try {
+                $logEntry->setTimestamp(new \DateTime($matches[1]));
+                $logEntry->setLevel(strtoupper($matches[2]));
+                $logEntry->setMessage($matches[3]);
+                return $logEntry;
+            } catch (\Exception $e) {
+                // Invalid date format, try next pattern
             }
-
-            $this->entityManager->persist($logEntry);
         }
 
-        $this->entityManager->flush();
-    }
+        // Pattern 2: Apache/Nginx format
+        // 127.0.0.1 - - [15/Jan/2024:10:30:45 +0000] "GET /path HTTP/1.1" 200 1234
+        if (preg_match('/^[\d\.]+ - - \[([^\]]+)\] "([^"]+)" (\d+)/', $line, $matches)) {
+            try {
+                $logEntry->setTimestamp(\DateTime::createFromFormat('d/M/Y:H:i:s O', $matches[1]));
+                $logEntry->setLevel($matches[3] >= 400 ? 'ERROR' : 'INFO');
+                $logEntry->setMessage($matches[2]);
+                return $logEntry;
+            } catch (\Exception $e) {
+                // Invalid date format, try next pattern
+            }
+        }
 
-    public function getAvailableParsers(): array
-    {
-        return array_map(fn($parser) => $parser->getName(), $this->parsers);
+        // Pattern 3: Simple timestamp format
+        // 2024-01-15 10:30:45 ERROR Something went wrong
+        if (preg_match('/^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+(\w+)\s+(.+)$/', $line, $matches)) {
+            try {
+                $logEntry->setTimestamp(new \DateTime($matches[1]));
+                $logEntry->setLevel(strtoupper($matches[2]));
+                $logEntry->setMessage($matches[3]);
+                return $logEntry;
+            } catch (\Exception $e) {
+                // Invalid date format, try next pattern
+            }
+        }
+
+        // Pattern 4: ISO 8601 timestamp
+        // 2024-01-15T10:30:45+00:00 [ERROR] Something went wrong
+        if (preg_match('/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2})\s+\[(\w+)\]\s+(.+)$/', $line, $matches)) {
+            try {
+                $logEntry->setTimestamp(new \DateTime($matches[1]));
+                $logEntry->setLevel(strtoupper($matches[2]));
+                $logEntry->setMessage($matches[3]);
+                return $logEntry;
+            } catch (\Exception $e) {
+                // Invalid date format
+            }
+        }
+
+        // Fallback: treat entire line as message with current timestamp
+        $logEntry->setTimestamp(new \DateTime());
+        $logEntry->setLevel('INFO');
+        $logEntry->setMessage($line);
+
+        return $logEntry;
     }
 }

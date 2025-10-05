@@ -10,5 +10,8 @@ services:
             - '../src/Entity/'
             - '../src/Kernel.php'
 
+    App\Service\FileUploadService:
+        arguments:
+            $uploadDirectory: '%kernel.project_dir%/public/uploads'
 parameters:
     upload_directory: '%kernel.project_dir%/public/uploads'

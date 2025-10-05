@@ -6,66 +6,51 @@ use App\Repository\LogEntryRepository;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Entity representing a log entry
+ *
+ * Follows best practices:
+ * - Proper encapsulation with private properties
+ * - Type hints for all properties
+ * - Proper Doctrine annotations
+ */
 #[ORM\Entity(repositoryClass: LogEntryRepository::class)]
-#[ORM\Index(columns: ['timestamp'])]
-#[ORM\Index(columns: ['severity'])]
+#[ORM\Table(name: 'log_entry')]
+#[ORM\Index(columns: ['level'], name: 'idx_level')]
+#[ORM\Index(columns: ['timestamp'], name: 'idx_timestamp')]
+#[ORM\Index(columns: ['source'], name: 'idx_source')]
 class LogEntry
 {
     #[ORM\Id]
     #[ORM\GeneratedValue]
-    #[ORM\Column]
+    #[ORM\Column(type: Types::INTEGER)]
     private ?int $id = null;
 
-    #[ORM\ManyToOne(inversedBy: 'logEntries')]
-    #[ORM\JoinColumn(nullable: false)]
-    private ?LogFile $logFile = null;
-
-    #[ORM\Column(type: Types::DATETIME_MUTABLE)]
-    private ?\DateTimeInterface $timestamp = null;
-
-    #[ORM\Column(length: 20)]
+    #[ORM\Column(type: Types::STRING, length: 20)]
     private ?string $level = null;
-
-    #[ORM\Column(length: 20)]
-    private ?string $severity = null;
 
     #[ORM\Column(type: Types::TEXT)]
     private ?string $message = null;
 
-    #[ORM\Column(length: 100, nullable: true)]
-    private ?string $channel = null;
+    #[ORM\Column(type: Types::DATETIME_MUTABLE)]
+    private ?\DateTimeInterface $timestamp = null;
 
-    #[ORM\Column(type: Types::TEXT, nullable: true)]
-    private ?string $rawContent = null;
+    #[ORM\Column(type: Types::STRING, length: 255, nullable: true)]
+    private ?string $source = null;
 
-    #[ORM\Column(type: Types::JSON, nullable: true)]
-    private ?array $context = null;
+    #[ORM\Column(type: Types::DATETIME_MUTABLE)]
+    private ?\DateTimeInterface $createdAt = null;
+
+    public function __construct()
+    {
+        $this->createdAt = new \DateTime();
+    }
+
+    // Getters and Setters
 
     public function getId(): ?int
     {
         return $this->id;
-    }
-
-    public function getLogFile(): ?LogFile
-    {
-        return $this->logFile;
-    }
-
-    public function setLogFile(?LogFile $logFile): static
-    {
-        $this->logFile = $logFile;
-        return $this;
-    }
-
-    public function getTimestamp(): ?\DateTimeInterface
-    {
-        return $this->timestamp;
-    }
-
-    public function setTimestamp(\DateTimeInterface $timestamp): static
-    {
-        $this->timestamp = $timestamp;
-        return $this;
     }
 
     public function getLevel(): ?string
@@ -73,20 +58,9 @@ class LogEntry
         return $this->level;
     }
 
-    public function setLevel(string $level): static
+    public function setLevel(string $level): self
     {
         $this->level = $level;
-        return $this;
-    }
-
-    public function getSeverity(): ?string
-    {
-        return $this->severity;
-    }
-
-    public function setSeverity(string $severity): static
-    {
-        $this->severity = $severity;
         return $this;
     }
 
@@ -95,58 +69,65 @@ class LogEntry
         return $this->message;
     }
 
-    public function setMessage(string $message): static
+    public function setMessage(string $message): self
     {
         $this->message = $message;
         return $this;
     }
 
-    public function getChannel(): ?string
+    public function getTimestamp(): ?\DateTimeInterface
     {
-        return $this->channel;
+        return $this->timestamp;
     }
 
-    public function setChannel(?string $channel): static
+    public function setTimestamp(\DateTimeInterface $timestamp): self
     {
-        $this->channel = $channel;
+        $this->timestamp = $timestamp;
         return $this;
     }
 
-    public function getRawContent(): ?string
+    public function getSource(): ?string
     {
-        return $this->rawContent;
+        return $this->source;
     }
 
-    public function setRawContent(?string $rawContent): static
+    public function setSource(?string $source): self
     {
-        $this->rawContent = $rawContent;
+        $this->source = $source;
         return $this;
     }
 
-    public function getContext(): ?array
+    public function getCreatedAt(): ?\DateTimeInterface
     {
-        return $this->context;
+        return $this->createdAt;
     }
 
-    public function setContext(?array $context): static
+    public function setCreatedAt(\DateTimeInterface $createdAt): self
     {
-        $this->context = $context;
+        $this->createdAt = $createdAt;
         return $this;
     }
 
-    public function getFormattedTimestamp(): string
+    /**
+     * Get a color class based on log level
+     * Helper method for UI display
+     */
+    public function getLevelColorClass(): string
     {
-        return $this->timestamp->format('Y-m-d H:i:s');
-    }
-
-    public function getSeverityBadgeClass(): string
-    {
-        return match($this->severity) {
-            'Critical' => 'badge-critical',
-            'Medium' => 'badge-medium',
-            'Low' => 'badge-low',
-            'Bug' => 'badge-bug',
-            default => 'badge-default'
+        return match(strtoupper($this->level)) {
+            'ERROR', 'CRITICAL', 'ALERT', 'EMERGENCY' => 'danger',
+            'WARNING' => 'warning',
+            'INFO', 'NOTICE' => 'info',
+            'DEBUG' => 'secondary',
+            default => 'primary',
         };
+    }
+
+    /**
+     * Get badge class for Bootstrap styling
+     */
+    public function getLevelBadgeClass(): string
+    {
+        return 'badge bg-' . $this->getLevelColorClass();
     }
 }

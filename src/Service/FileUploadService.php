@@ -1,65 +1,101 @@
 <?php
-// src/Service/FileUploadService.php
 
 namespace App\Service;
 
-use App\Entity\LogFile;
-use App\Factory\LogFileFactory;
-use App\Exception\FileUploadException;
-use Doctrine\ORM\EntityManagerInterface;
-use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\File\Exception\FileException;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
+use Symfony\Component\String\Slugger\SluggerInterface;
 
+/**
+ * Service for handling file uploads
+ *
+ * Follows SOLID principles:
+ * - Single Responsibility: Only handles file upload logic
+ * - Dependency Inversion: Depends on abstractions (SluggerInterface)
+ */
 class FileUploadService
 {
     public function __construct(
-        private LogFileFactory $logFileFactory,
-        private EntityManagerInterface $entityManager,
-        private FileValidatorService $validator,
-        private string $uploadDirectory
-    ) {}
+        private string $uploadDirectory,
+        private SluggerInterface $slugger
+    ) {
+    }
 
     /**
-     * @throws FileUploadException
+     * Upload a file and return the new filename
+     *
+     * @param UploadedFile $file The uploaded file
+     * @return string The new filename
+     * @throws \Exception If upload fails
      */
-    public function handleUpload(UploadedFile $uploadedFile, $user = null): LogFile
+    public function upload(UploadedFile $file): string
     {
-        // 1. Validation
-        $this->validator->validate($uploadedFile);
+        // Get original filename without extension
+        $originalFilename = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
 
-        // 2. Créer l'entité via Factory
-        $logFile = $this->logFileFactory->createFromUploadedFile($uploadedFile, $user);
+        // Slugify the filename to make it safe for filesystem
+        $safeFilename = $this->slugger->slug($originalFilename);
 
-        // 3. Déplacer le fichier
-        $this->moveFileToStorage($uploadedFile, $logFile->getFilename());
+        // Create unique filename with timestamp and random string
+        $newFilename = $safeFilename . '-' . uniqid() . '.' . $file->guessExtension();
 
-        // 4. Persister en base
-        $this->persistLogFile($logFile);
-
-        return $logFile;
-    }
-
-    private function moveFileToStorage(UploadedFile $file, string $filename): void
-    {
         try {
-            // Créer le dossier si nécessaire
-            if (!is_dir($this->uploadDirectory)) {
-                mkdir($this->uploadDirectory, 0755, true);
-            }
-
-            $file->move($this->uploadDirectory, $filename);
+            // Move the file to the upload directory
+            $file->move($this->uploadDirectory, $newFilename);
         } catch (FileException $e) {
-            throw new FileUploadException('Failed to move uploaded file: ' . $e->getMessage(), 0, $e);
+            throw new \Exception('Failed to upload file: ' . $e->getMessage());
         }
+
+        return $newFilename;
     }
 
-    private function persistLogFile(LogFile $logFile): void
+    /**
+     * Get the upload directory path
+     *
+     * @return string
+     */
+    public function getUploadDirectory(): string
     {
-        try {
-            $this->entityManager->persist($logFile);
-            $this->entityManager->flush();
-        } catch (\Exception $e) {
-            throw new FileUploadException('Failed to save file information: ' . $e->getMessage(), 0, $e);
+        return $this->uploadDirectory;
+    }
+
+    /**
+     * Delete a file from the upload directory
+     *
+     * @param string $filename
+     * @return bool
+     */
+    public function delete(string $filename): bool
+    {
+        $filePath = $this->uploadDirectory . '/' . $filename;
+
+        if (file_exists($filePath)) {
+            return unlink($filePath);
         }
+
+        return false;
+    }
+
+    /**
+     * Check if a file exists in the upload directory
+     *
+     * @param string $filename
+     * @return bool
+     */
+    public function fileExists(string $filename): bool
+    {
+        $filePath = $this->uploadDirectory . '/' . $filename;
+        return file_exists($filePath);
+    }
+
+    /**
+     * Get the full path to a file
+     *
+     * @param string $filename
+     * @return string
+     */
+    public function getFilePath(string $filename): string
+    {
+        return $this->uploadDirectory . '/' . $filename;
     }
 }

@@ -1,30 +1,419 @@
-{# templates/upload/index.html.twig #}
+{% extends 'base.html.twig' %}
 
-<!-- Le formulaire doit pointer vers la bonne route -->
-{{ form_start(form, {
-    'attr': {
-        'id': 'upload-form',
-        'action': path('app_upload'),  {# ← IMPORTANT #}
-        'method': 'POST',
-        'enctype': 'multipart/form-data'
+{% block title %}Upload Log File{% endblock %}
+
+{% block stylesheets %}
+{{ parent() }}
+<style>
+    .upload-container {
+        max-width: 700px;
+        margin: 0 auto;
+        padding: 40px 20px;
+        text-align: center;
     }
-}) }}
 
-    <!-- Input file caché -->
-    <input type="file"
-           id="file-input"
-           name="{{ form.file.vars.full_name }}"
-           accept=".log,.txt,text/plain"
-           style="display: none;">
+    .upload-title {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 1rem;
+        color: #1a1a1a;
+    }
 
-    <!-- Bouton Visualize - doit être de type submit -->
-    {{ form_widget(form.submit, {
-        'attr': {
-            'type': 'submit',  {# ← IMPORTANT #}
-            'class': 'btn-visualize',
-            'id': 'visualize-btn',
-            'disabled': 'disabled'
+    .upload-subtitle {
+        font-size: 1.1rem;
+        color: #6c757d;
+        margin-bottom: 0.5rem;
+    }
+
+    .upload-supported {
+        font-size: 1rem;
+        color: #6c757d;
+        margin-bottom: 2.5rem;
+    }
+
+    .upload-supported code {
+        background: #f8f9fa;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-family: 'Courier New', monospace;
+        color: #d63384;
+    }
+
+    .drop-zone {
+        border: 3px dashed #dee2e6;
+        border-radius: 12px;
+        padding: 60px 40px;
+        background: #ffffff;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        position: relative;
+        margin-bottom: 2rem;
+    }
+
+    .drop-zone:hover {
+        border-color: #0d6efd;
+        background: #f8f9ff;
+    }
+
+    .drop-zone.dragging {
+        border-color: #0d6efd;
+        background: #e7f1ff;
+        transform: scale(1.02);
+    }
+
+    .drop-zone-icon {
+        width: 80px;
+        height: 80px;
+        margin: 0 auto 20px;
+    }
+
+    .drop-zone-icon svg {
+        width: 100%;
+        height: 100%;
+        stroke: #adb5bd;
+        transition: stroke 0.3s ease;
+    }
+
+    .drop-zone:hover .drop-zone-icon svg,
+    .drop-zone.dragging .drop-zone-icon svg {
+        stroke: #0d6efd;
+    }
+
+    .drop-zone-text {
+        font-size: 1.1rem;
+        color: #495057;
+        margin-bottom: 0.5rem;
+    }
+
+    .drop-zone-text .browse-link {
+        color: #0d6efd;
+        text-decoration: none;
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    .drop-zone-text .browse-link:hover {
+        text-decoration: underline;
+    }
+
+    .drop-zone-limit {
+        font-size: 0.9rem;
+        color: #6c757d;
+    }
+
+    /* Hide the Symfony-generated file input completely */
+    input[type="file"] {
+        position: absolute !important;
+        width: 1px !important;
+        height: 1px !important;
+        padding: 0 !important;
+        margin: -1px !important;
+        overflow: hidden !important;
+        clip: rect(0,0,0,0) !important;
+        white-space: nowrap !important;
+        border: 0 !important;
+    }
+
+    .file-selected {
+        background: #d1e7dd;
+        border: 2px solid #198754;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+        display: none;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .file-selected.show {
+        display: flex;
+    }
+
+    .file-selected-icon {
+        color: #198754;
+        font-size: 1.5rem;
+        margin-right: 10px;
+    }
+
+    .file-selected-name {
+        font-weight: 600;
+        color: #0f5132;
+    }
+
+    .visualize-btn {
+        width: 100%;
+        padding: 15px;
+        font-size: 1.1rem;
+        font-weight: 600;
+        background: #6c757d;
+        border: none;
+        border-radius: 8px;
+        color: white;
+        cursor: not-allowed;
+        transition: all 0.3s ease;
+    }
+
+    .visualize-btn.active {
+        background: #0d6efd;
+        cursor: pointer;
+    }
+
+    .visualize-btn.active:hover {
+        background: #0b5ed7;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(13, 110, 253, 0.3);
+    }
+
+    .visualize-btn:disabled {
+        opacity: 0.6;
+    }
+
+    .upload-footer {
+        margin-top: 1.5rem;
+        font-size: 0.9rem;
+        color: #6c757d;
+    }
+
+    .upload-footer a {
+        color: #495057;
+        text-decoration: underline;
+    }
+
+    /* Hide form errors styling if they appear */
+    .form-error-icon,
+    .form-error-message {
+        display: none;
+    }
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="upload-container">
+    <h1 class="upload-title">Upload Your Log File</h1>
+    <p class="upload-subtitle">Drag & drop your file, or click to browse.</p>
+    <p class="upload-supported">We support <code>.log</code> and <code>.txt</code> files.</p>
+
+    {% for message in app.flashes('success') %}
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    {% endfor %}
+
+    {% for message in app.flashes('error') %}
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    {% endfor %}
+
+    {{ form_start(form, {'attr': {'id': 'upload-form', 'novalidate': 'novalidate', 'data-turbo': 'false'}}) }}
+
+        <div class="drop-zone" id="dropZone">
+            <div class="drop-zone-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+                </svg>
+            </div>
+            <div class="drop-zone-text">
+                <span class="browse-link" id="browseLink">Click to upload</span> or drag and drop
+            </div>
+            <div class="drop-zone-limit">Maximum file size: 10MB</div>
+        </div>
+
+        {# This renders the hidden file input #}
+        {{ form_widget(form.logFile) }}
+
+        <div class="file-selected" id="fileSelected">
+            <span class="file-selected-icon">✓</span>
+            <span class="file-selected-name" id="fileName"></span>
+        </div>
+
+        <button type="submit" class="visualize-btn" id="visualizeBtn" disabled>
+            Visualize
+        </button>
+
+        <div class="upload-footer">
+            By uploading, you agree to our
+            <a href="#">Terms of Service</a> and
+            <a href="#">Privacy Policy</a>.
+        </div>
+
+        {{ form_rest(form) }}
+    {{ form_end(form) }}
+</div>
+
+{% endblock %}
+
+{% block javascripts %}
+{{ parent() }}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const dropZone = document.getElementById('dropZone');
+        const browseLink = document.getElementById('browseLink');
+        const fileSelected = document.getElementById('fileSelected');
+        const fileName = document.getElementById('fileName');
+        const visualizeBtn = document.getElementById('visualizeBtn');
+        const form = document.getElementById('upload-form');
+
+        // Find the file input - try multiple possible IDs
+        let fileInput = document.getElementById('log_file_type_logFile')
+                     || document.getElementById('log_file_logFile')
+                     || document.querySelector('input[type="file"]');
+
+        console.log('File input found:', fileInput);
+        console.log('File input ID:', fileInput ? fileInput.id : 'not found');
+
+        // Check if all elements exist
+        if (!dropZone || !fileInput || !visualizeBtn || !form) {
+            console.error('Required elements missing:', {
+                dropZone: !!dropZone,
+                fileInput: !!fileInput,
+                visualizeBtn: !!visualizeBtn,
+                form: !!form
+            });
+            return;
         }
-    }) }}
 
-{{ form_end(form, {'render_rest': false}) }}
+        console.log('All elements found successfully!');
+
+        // Prevent default drag behaviors on the entire document
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            document.addEventListener(eventName, function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }, false);
+        });
+
+        // Highlight drop zone when dragging over it
+        dropZone.addEventListener('dragenter', function(e) {
+            dropZone.classList.add('dragging');
+        });
+
+        dropZone.addEventListener('dragover', function(e) {
+            dropZone.classList.add('dragging');
+        });
+
+        dropZone.addEventListener('dragleave', function(e) {
+            // Only remove if we're leaving the drop zone itself
+            if (e.target === dropZone) {
+                dropZone.classList.remove('dragging');
+            }
+        });
+
+        dropZone.addEventListener('drop', function(e) {
+            console.log('Drop event triggered');
+            dropZone.classList.remove('dragging');
+
+            const files = e.dataTransfer.files;
+            console.log('Files dropped:', files.length);
+
+            if (files.length > 0) {
+                // Manually assign the files to the input
+                try {
+                    // Create a new DataTransfer object and add the file
+                    const dataTransfer = new DataTransfer();
+                    dataTransfer.items.add(files[0]);
+                    fileInput.files = dataTransfer.files;
+
+                    console.log('Files assigned to input');
+                    handleFiles(files);
+                } catch (error) {
+                    console.error('Error handling drop:', error);
+                    alert('Error handling the dropped file. Please try using the file browser instead.');
+                }
+            }
+        });
+
+        // Handle click on drop zone
+        dropZone.addEventListener('click', function(e) {
+            console.log('Drop zone clicked');
+            e.preventDefault();
+            fileInput.click();
+        });
+
+        // Handle click on browse link
+        browseLink.addEventListener('click', function(e) {
+            console.log('Browse link clicked');
+            e.preventDefault();
+            e.stopPropagation();
+            fileInput.click();
+        });
+
+        // Handle file selection via file input
+        fileInput.addEventListener('change', function(e) {
+            console.log('File input changed, files:', this.files.length);
+            if (this.files.length > 0) {
+                handleFiles(this.files);
+            }
+        });
+
+        function handleFiles(files) {
+            console.log('handleFiles called with', files.length, 'files');
+
+            if (files.length === 0) return;
+
+            const file = files[0];
+            console.log('Processing file:', file.name, file.size, file.type);
+
+            // Validate file type
+            const allowedExtensions = /(\.log|\.txt)$/i;
+            if (!allowedExtensions.exec(file.name)) {
+                alert('Please upload a valid log file (.log or .txt)');
+                fileInput.value = '';
+                return;
+            }
+
+            // Validate file size (10MB)
+            if (file.size > 10485760) {
+                alert('File is too large. Maximum size is 10MB');
+                fileInput.value = '';
+                return;
+            }
+
+            console.log('File validation passed');
+
+            // Show selected file info
+            fileName.textContent = file.name + ' (' + formatFileSize(file.size) + ')';
+            fileSelected.classList.add('show');
+
+            // Enable the submit button
+            visualizeBtn.classList.add('active');
+            visualizeBtn.disabled = false;
+
+            console.log('UI updated, button enabled');
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        // Handle form submission
+        form.addEventListener('submit', function(e) {
+            console.log('Form submit triggered');
+            console.log('Button active:', visualizeBtn.classList.contains('active'));
+            console.log('Files in input:', fileInput.files.length);
+
+            if (!visualizeBtn.classList.contains('active') || fileInput.files.length === 0) {
+                e.preventDefault();
+                alert('Please select a file first');
+                return false;
+            }
+
+            // Show loading state
+            visualizeBtn.textContent = 'Processing...';
+            visualizeBtn.disabled = true;
+            visualizeBtn.classList.remove('active');
+
+            console.log('Form submitting...');
+
+            // Form will submit naturally
+            return true;
+        });
+    });
+</script>
+{% endblock %}

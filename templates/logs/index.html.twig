@@ -1,0 +1,583 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Logs{% endblock %}
+
+{% block stylesheets %}
+{{ parent() }}
+<style>
+    .logs-container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 40px 20px;
+    }
+
+    .logs-header {
+        margin-bottom: 2rem;
+    }
+
+    .logs-title {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        color: #1a1a1a;
+    }
+
+    .logs-subtitle {
+        font-size: 1rem;
+        color: #6c757d;
+    }
+
+    .search-bar {
+        border: 2px dashed #dee2e6;
+        border-radius: 8px;
+        padding: 20px;
+        background: #ffffff;
+        margin-bottom: 2rem;
+    }
+
+    .search-controls {
+        display: flex;
+        gap: 15px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .search-input-wrapper {
+        flex: 1;
+        min-width: 250px;
+        position: relative;
+    }
+
+    .search-input {
+        width: 100%;
+        padding: 10px 10px 10px 40px;
+        border: 2px dashed #dee2e6;
+        border-radius: 6px;
+        font-size: 0.95rem;
+        transition: all 0.3s ease;
+    }
+
+    .search-input:focus {
+        outline: none;
+        border-color: #0d6efd;
+        background: #f8f9ff;
+    }
+
+    .search-icon {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #6c757d;
+        pointer-events: none;
+    }
+
+    .sort-btn {
+        padding: 10px 20px;
+        border: 2px dashed #dee2e6;
+        border-radius: 6px;
+        background: white;
+        cursor: pointer;
+        font-size: 0.95rem;
+        color: #495057;
+        transition: all 0.3s ease;
+        white-space: nowrap;
+    }
+
+    .sort-btn:hover {
+        border-color: #0d6efd;
+        color: #0d6efd;
+    }
+
+    .sort-btn.active {
+        border-color: #0d6efd;
+        background: #e7f1ff;
+        color: #0d6efd;
+    }
+
+    .export-dropdown {
+        position: relative;
+    }
+
+    .export-btn {
+        padding: 10px 20px;
+        border: 2px dashed #dee2e6;
+        border-radius: 6px;
+        background: white;
+        cursor: pointer;
+        font-size: 0.95rem;
+        color: #495057;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .download-btn {
+        padding: 10px 30px;
+        background: #0d6efd;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .download-btn:hover {
+        background: #0b5ed7;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(13, 110, 253, 0.3);
+    }
+
+    .logs-table-container {
+        border: 2px solid #dee2e6;
+        border-radius: 8px;
+        overflow: hidden;
+        background: white;
+    }
+
+    .logs-table {
+        width: 100%;
+        margin: 0;
+    }
+
+    .logs-table thead {
+        background: #f8f9fa;
+    }
+
+    .logs-table th {
+        padding: 15px 20px;
+        font-weight: 600;
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        color: #495057;
+        border-bottom: 2px solid #dee2e6;
+        text-align: left;
+    }
+
+    .logs-table td {
+        padding: 15px 20px;
+        border-bottom: 1px solid #f0f0f0;
+        vertical-align: middle;
+        text-align: left;
+    }
+
+    .logs-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    .logs-table tbody tr:hover {
+        background: #f8f9fa;
+    }
+
+    .logs-table tbody tr.hidden {
+        display: none;
+    }
+
+    .severity-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        min-width: 80px;
+        text-align: center;
+    }
+
+    .severity-critical {
+        background: #ffe5e5;
+        color: #dc3545;
+    }
+
+    .severity-error {
+        background: #ffe5e5;
+        color: #dc3545;
+    }
+
+    .severity-warning {
+        background: #fff3cd;
+        color: #856404;
+    }
+
+    .severity-medium {
+        background: #fff3cd;
+        color: #856404;
+    }
+
+    .severity-info {
+        background: #d1ecf1;
+        color: #0c5460;
+    }
+
+    .severity-low {
+        background: #fff8e1;
+        color: #f57f17;
+    }
+
+    .severity-debug {
+        background: #e9ecef;
+        color: #6c757d;
+    }
+
+    .severity-bug {
+        background: #e9ecef;
+        color: #6c757d;
+    }
+
+    .date-cell {
+        font-family: 'Courier New', monospace;
+        font-size: 0.9rem;
+        color: #495057;
+        white-space: nowrap;
+    }
+
+    .message-cell {
+        color: #212529;
+        max-width: 600px;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: #6c757d;
+    }
+
+    .empty-state-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+        opacity: 0.3;
+    }
+
+    .no-results {
+        text-align: center;
+        padding: 40px 20px;
+        color: #6c757d;
+        display: none;
+    }
+
+    .no-results.show {
+        display: block;
+    }
+
+    /* Dropdown menu */
+    .dropdown {
+        position: relative;
+        display: inline-block;
+    }
+
+    .dropdown-menu {
+        display: none;
+        position: absolute;
+        right: 0;
+        top: 100%;
+        margin-top: 5px;
+        background: white;
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        min-width: 120px;
+        z-index: 1000;
+    }
+
+    .dropdown-menu.show {
+        display: block;
+    }
+
+    .dropdown-item {
+        display: block;
+        padding: 10px 20px;
+        color: #495057;
+        text-decoration: none;
+        transition: all 0.2s;
+        border: none;
+        background: none;
+        width: 100%;
+        text-align: left;
+        cursor: pointer;
+    }
+
+    .dropdown-item:hover {
+        background: #f8f9fa;
+        color: #0d6efd;
+    }
+
+    .dropdown-item:first-child {
+        border-radius: 6px 6px 0 0;
+    }
+
+    .dropdown-item:last-child {
+        border-radius: 0 0 6px 6px;
+    }
+
+    /* Highlight search results */
+    mark {
+        background-color: yellow;
+        font-weight: bold;
+        padding: 0;
+    }
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="logs-container">
+    <div class="logs-header">
+        <h1 class="logs-title">Logs</h1>
+        <p class="logs-subtitle">View and manage your application logs.</p>
+    </div>
+
+    {% for message in app.flashes('success') %}
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    {% endfor %}
+
+    {% for message in app.flashes('error') %}
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    {% endfor %}
+
+    <div class="search-bar">
+        <div class="search-controls">
+            <div class="search-input-wrapper">
+                <svg class="search-icon" width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+                <input
+                    type="text"
+                    id="searchInput"
+                    class="search-input"
+                    placeholder="Search for errors..."
+                >
+            </div>
+
+            <button type="button" class="sort-btn" id="sortByDate" onclick="toggleSort('date')">
+                <span id="dateIcon">↓</span> Sort by Date
+            </button>
+
+            <button type="button" class="sort-btn" id="sortBySeverity" onclick="toggleSort('severity')">
+                <span id="severityIcon">⇅</span> Sort by Severity
+            </button>
+
+            <div class="dropdown">
+                <button type="button" class="export-btn" id="exportDropdown" onclick="toggleDropdown()">
+                    <span id="selectedFormat">PDF</span>
+                    <span>▼</span>
+                </button>
+                <div class="dropdown-menu" id="exportMenu">
+                    <button type="button" class="dropdown-item" onclick="selectFormat('PDF')">PDF</button>
+                    <button type="button" class="dropdown-item" onclick="selectFormat('CSV')">CSV</button>
+                    <button type="button" class="dropdown-item" onclick="selectFormat('JSON')">JSON</button>
+                </div>
+            </div>
+
+            <button type="button" class="download-btn" onclick="downloadLogs()">Download</button>
+        </div>
+    </div>
+
+    <div class="logs-table-container">
+        {% if logEntries is defined and logEntries is not empty %}
+        <table class="logs-table" id="logsTable">
+            <thead>
+                <tr>
+                    <th style="width: 15%">DATE</th>
+                    <th style="width: 15%">SEVERITY</th>
+                    <th style="width: 70%">MESSAGE</th>
+                </tr>
+            </thead>
+            <tbody id="logsTableBody">
+                {% for entry in logEntries %}
+                <tr data-timestamp="{{ entry.timestamp|date('U') }}"
+                    data-severity="{{ entry.level|upper }}"
+                    data-date="{{ entry.timestamp|date('Y-m-d H:i:s') }}"
+                    data-message="{{ entry.message|e('html_attr') }}">
+                    <td class="date-cell">{{ entry.timestamp|date('Y-m-d H:i:s') }}</td>
+                    <td>
+                        <span class="severity-badge severity-{{ entry.level|lower }}">
+                            {{ entry.level }}
+                        </span>
+                    </td>
+                    <td class="message-cell">{{ entry.message }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div id="noResults" class="no-results">
+            <p>No log entries match your search.</p>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">📋</div>
+            <p>No log entries found.</p>
+            <p class="text-muted">Upload a log file to get started.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    // Performance optimization: Use cached references
+    const searchInput = document.getElementById('searchInput');
+    const tableBody = document.getElementById('logsTableBody');
+    const noResults = document.getElementById('noResults');
+    const logsTable = document.getElementById('logsTable');
+
+    let currentSort = 'date';
+    let currentOrder = 'desc';
+    let selectedExportFormat = 'pdf';
+    let allRows = [];
+    let searchTimeout;
+
+    // Cache all rows on load for better performance
+    if (tableBody) {
+        allRows = Array.from(tableBody.querySelectorAll('tr'));
+    }
+
+    // Optimized search with debouncing
+    if (searchInput) {
+        searchInput.addEventListener('input', function(e) {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                performSearch(e.target.value);
+            }, 150); // Debounce for 150ms
+        });
+    }
+
+    function performSearch(searchTerm) {
+        const term = searchTerm.toLowerCase().trim();
+        let visibleCount = 0;
+
+        allRows.forEach(row => {
+            const dateText = row.dataset.date.toLowerCase();
+            const severityText = row.dataset.severity.toLowerCase();
+            const messageText = row.dataset.message.toLowerCase();
+
+            const matches = term === '' ||
+                          dateText.includes(term) ||
+                          severityText.includes(term) ||
+                          messageText.includes(term);
+
+            if (matches) {
+                row.style.display = '';
+                visibleCount++;
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        // Show/hide no results message
+        if (noResults) {
+            if (visibleCount === 0 && term !== '') {
+                noResults.classList.add('show');
+                if (logsTable) logsTable.style.display = 'none';
+            } else {
+                noResults.classList.remove('show');
+                if (logsTable) logsTable.style.display = 'table';
+            }
+        }
+    }
+
+    // Optimized sort function using array sort
+    function toggleSort(field) {
+        if (currentSort === field) {
+            currentOrder = currentOrder === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentSort = field;
+            currentOrder = field === 'date' ? 'desc' : 'asc';
+        }
+
+        // Update UI
+        document.querySelectorAll('.sort-btn').forEach(btn => btn.classList.remove('active'));
+        const activeBtn = document.getElementById(field === 'date' ? 'sortByDate' : 'sortBySeverity');
+        activeBtn.classList.add('active');
+
+        const icon = document.getElementById(field === 'date' ? 'dateIcon' : 'severityIcon');
+        const otherIcon = document.getElementById(field === 'date' ? 'severityIcon' : 'dateIcon');
+        icon.textContent = currentOrder === 'asc' ? '↑' : '↓';
+        otherIcon.textContent = '⇅';
+
+        sortTable(field, currentOrder);
+    }
+
+    function sortTable(field, order) {
+        if (!tableBody || allRows.length === 0) return;
+
+        const severityOrder = {
+            'CRITICAL': 1, 'ERROR': 2, 'WARNING': 3, 'MEDIUM': 3,
+            'INFO': 4, 'LOW': 5, 'DEBUG': 6, 'BUG': 6
+        };
+
+        // Use a document fragment for better performance
+        const fragment = document.createDocumentFragment();
+
+        const sortedRows = [...allRows].sort((a, b) => {
+            let comparison = 0;
+
+            if (field === 'date') {
+                const aVal = parseInt(a.dataset.timestamp);
+                const bVal = parseInt(b.dataset.timestamp);
+                comparison = aVal - bVal;
+            } else {
+                const aVal = severityOrder[a.dataset.severity] || 999;
+                const bVal = severityOrder[b.dataset.severity] || 999;
+                comparison = aVal - bVal;
+            }
+
+            return order === 'asc' ? comparison : -comparison;
+        });
+
+        // Append all at once for better performance
+        sortedRows.forEach(row => fragment.appendChild(row));
+        tableBody.appendChild(fragment);
+
+        // Update cache
+        allRows = sortedRows;
+    }
+
+    // Export format selection
+    function selectFormat(format) {
+        selectedExportFormat = format.toLowerCase();
+        document.getElementById('selectedFormat').textContent = format;
+        toggleDropdown();
+    }
+
+    function toggleDropdown() {
+        const menu = document.getElementById('exportMenu');
+        menu.classList.toggle('show');
+    }
+
+    // Download functionality - Fixed!
+    function downloadLogs() {
+        const searchTerm = searchInput ? searchInput.value : '';
+        const baseUrl = '{{ path('app_logs_export', {'format': '__FORMAT__'}) }}';
+        let url = baseUrl.replace('__FORMAT__', selectedExportFormat);
+
+        if (searchTerm) {
+            url += '?search=' + encodeURIComponent(searchTerm);
+        }
+
+        // Trigger download
+        window.location.href = url;
+    }
+
+    // Close dropdown when clicking outside
+    window.addEventListener('click', function(e) {
+        if (!e.target.closest('.export-btn') && !e.target.closest('.dropdown-menu')) {
+            const menu = document.getElementById('exportMenu');
+            if (menu && menu.classList.contains('show')) {
+                menu.classList.remove('show');
+            }
+        }
+    });
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        if (allRows.length > 0) {
+            sortTable('date', 'desc');
+            document.getElementById('sortByDate').classList.add('active');
+        }
+    });
+</script>
+{% endblock %}
